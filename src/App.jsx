@@ -1,0 +1,84 @@
+import { useEffect, useRef } from 'react'
+import { motion, useScroll, useSpring } from 'framer-motion'
+import Hero from './components/Hero'
+import WinnerCard from './components/WinnerCard'
+import Ending from './components/Ending'
+import FloatingElements from './components/FloatingElements'
+import { cards } from './data/cards'
+import { playReveal, preloadSounds } from './sound'
+
+// When the card swaps to its face in WinnerCard — the drum-roll climaxes here and
+// the applause kicks in right as the winner is revealed.
+const FLIP_SECONDS = 0.86
+
+export default function App() {
+  const cardsRef = useRef(null)
+  const topRef = useRef(null)
+
+  const { scrollYProgress } = useScroll()
+  const progress = useSpring(scrollYProgress, { stiffness: 90, damping: 25, restDelta: 0.001 })
+
+  // Warm up the audio engine + applause sample on the first user gesture, so the
+  // very first card reveal already has the real applause decoded and ready.
+  useEffect(() => {
+    const warm = () => {
+      preloadSounds()
+      window.removeEventListener('pointerdown', warm)
+      window.removeEventListener('keydown', warm)
+    }
+    window.addEventListener('pointerdown', warm)
+    window.addEventListener('keydown', warm)
+    return () => {
+      window.removeEventListener('pointerdown', warm)
+      window.removeEventListener('keydown', warm)
+    }
+  }, [])
+
+  // Interaction sound layer. 'reveal' fires a drum-roll + applause on card flip.
+  const playSound = (type) => {
+    if (type === 'reveal') playReveal(FLIP_SECONDS)
+    // Extension hook for any future custom sounds.
+    if (typeof window !== 'undefined' && window.__dundieSound) window.__dundieSound(type)
+  }
+
+  const scrollToCards = () => {
+    cardsRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }
+  const scrollToTop = () => {
+    topRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }
+
+  return (
+    <div className="relative grain bg-deep">
+      {/* Scroll progress bar */}
+      <motion.div
+        className="fixed left-0 top-0 z-[60] h-1.5 origin-left bg-gradient-to-r from-sun via-coral to-ocean"
+        style={{ scaleX: progress, width: '100%' }}
+      />
+
+      <FloatingElements opacity={0.55} />
+
+      <div ref={topRef} />
+      <Hero onReveal={scrollToCards} />
+
+      <div ref={cardsRef} className="relative z-10">
+        {cards.map((card, i) => (
+          <WinnerCard
+            key={card.id}
+            card={card}
+            index={i}
+            total={cards.length}
+            onHoverSound={() => playSound('hover')}
+            onRevealSound={() => playSound('reveal')}
+          />
+        ))}
+      </div>
+
+      <Ending onShuffle={scrollToTop} />
+
+      <footer className="relative z-10 bg-deep py-8 text-center text-sm font-semibold text-white/50">
+        Design Dundies · Summer Edition · Fun awards. Big appreciation. All good vibes.
+      </footer>
+    </div>
+  )
+}
