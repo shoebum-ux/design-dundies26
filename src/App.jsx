@@ -13,7 +13,6 @@ const FLIP_SECONDS = 1.2
 
 export default function App() {
   const cardsRef = useRef(null)
-  const topRef = useRef(null)
 
   const { scrollYProgress } = useScroll()
   const progress = useSpring(scrollYProgress, { stiffness: 90, damping: 25, restDelta: 0.001 })
@@ -34,9 +33,6 @@ export default function App() {
   const scrollToCards = () => {
     cardsRef.current?.scrollIntoView({ behavior: 'smooth' })
   }
-  const scrollToTop = () => {
-    topRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }
 
   return (
     <div className="relative grain bg-deep">
@@ -48,7 +44,6 @@ export default function App() {
 
       <FloatingElements opacity={0.55} />
 
-      <div ref={topRef} />
       <Hero onReveal={scrollToCards} />
 
       <div ref={cardsRef} className="relative z-10">
@@ -64,7 +59,7 @@ export default function App() {
         ))}
       </div>
 
-      <Ending onShuffle={scrollToTop} />
+      <Ending />
 
       <footer className="relative z-10 bg-deep py-8 text-center text-sm font-semibold text-white/50">
         Design Dundies · Summer Edition · Fun awards. Big appreciation. All good vibes.
