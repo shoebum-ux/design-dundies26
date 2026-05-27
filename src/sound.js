@@ -1,13 +1,12 @@
 // Web Audio sound design for the card reveal.
 // A synthesized snare drum-roll builds tension during the flip, then a REAL
-// recorded crowd-applause sample celebrates the reveal as the card lands.
-// (Sample: Google Sound Library "battle_crowd_celebration", CC-BY 4.0.)
-// If the sample can't be decoded (e.g. older Safari + Ogg/Opus), we fall back
-// to a synthesized applause so something always plays.
+// recorded hand-clapping applause sample celebrates the reveal as the card lands.
+// (Sample: Mixkit clapping-crowd applause, free license. WAV plays in all browsers.)
+// If the sample can't be decoded we fall back to a synthesized applause.
 
 import { asset } from './asset'
 
-const APPLAUSE_URL = asset('assets/sounds/applause.ogg')
+const APPLAUSE_URL = asset('assets/sounds/applause.wav')
 
 let ctx = null
 let master = null
@@ -117,7 +116,7 @@ function playApplauseSample(audio, startAt, buffer) {
   const src = audio.createBufferSource()
   src.buffer = buffer
   const g = audio.createGain()
-  const dur = Math.min(buffer.duration, 3.2)
+  const dur = Math.min(buffer.duration, 4.5)
   g.gain.setValueAtTime(0.0001, startAt)
   g.gain.linearRampToValueAtTime(0.95, startAt + 0.08) // quick swell in
   g.gain.setValueAtTime(0.95, startAt + dur - 0.7)
