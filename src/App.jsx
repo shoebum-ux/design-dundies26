@@ -7,9 +7,9 @@ import FloatingElements from './components/FloatingElements'
 import { cards } from './data/cards'
 import { playReveal, preloadSounds } from './sound'
 
-// When the card swaps to its face in WinnerCard — the drum-roll climaxes here and
-// the applause kicks in right as the winner is revealed.
-const FLIP_SECONDS = 0.86
+// When the card swaps to its face in WinnerCard — the drum-roll crests here and
+// the applause + cheers kick in right as the winner is revealed.
+const FLIP_SECONDS = 1.2
 
 export default function App() {
   const cardsRef = useRef(null)
@@ -18,20 +18,10 @@ export default function App() {
   const { scrollYProgress } = useScroll()
   const progress = useSpring(scrollYProgress, { stiffness: 90, damping: 25, restDelta: 0.001 })
 
-  // Warm up the audio engine + applause sample on the first user gesture, so the
-  // very first card reveal already has the real applause decoded and ready.
+  // Decode the reveal samples up front so the very first card reveal already has
+  // the real drum-roll, applause and cheers ready (audio resumes on first click).
   useEffect(() => {
-    const warm = () => {
-      preloadSounds()
-      window.removeEventListener('pointerdown', warm)
-      window.removeEventListener('keydown', warm)
-    }
-    window.addEventListener('pointerdown', warm)
-    window.addEventListener('keydown', warm)
-    return () => {
-      window.removeEventListener('pointerdown', warm)
-      window.removeEventListener('keydown', warm)
-    }
+    preloadSounds()
   }, [])
 
   // Interaction sound layer. 'reveal' fires a drum-roll + applause on card flip.

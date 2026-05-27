@@ -1,17 +1,22 @@
 // Web Audio sound design for the card reveal.
-// A synthesized snare drum-roll builds tension during the flip, then a REAL
-// recorded hand-clapping applause sample celebrates the reveal as the card lands.
-// (Sample: Mixkit clapping-crowd applause, free license. WAV plays in all browsers.)
-// If the sample can't be decoded we fall back to a synthesized applause.
+// Real recorded samples (Mixkit, free license; WAV plays in every browser):
+//   • drumroll — a snare roll builds tension during the flip
+//   • applause — hand-clapping crowd erupts as the card lands
+//   • cheer    — hooting / whooping layered on top of the applause
+// Synthesized fallbacks cover the drumroll/applause if a sample can't decode.
 
 import { asset } from './asset'
 
-const APPLAUSE_URL = asset('assets/sounds/applause.wav')
+const URLS = {
+  drumroll: asset('assets/sounds/drumroll.wav'),
+  applause: asset('assets/sounds/applause.wav'),
+  cheer: asset('assets/sounds/cheer.wav'),
+}
 
 let ctx = null
 let master = null
-let applauseBuffer = null
-let applauseLoad = null // pending decode promise
+const buffers = {} // name -> AudioBuffer
+const loads = {} // name -> pending decode promise
 
 function getCtx() {
   if (typeof window === 'undefined') return null
@@ -20,34 +25,67 @@ function getCtx() {
     if (!AC) return null
     ctx = new AC()
     master = ctx.createGain()
-    master.gain.value = 0.5
+    master.gain.value = 0.55
     master.connect(ctx.destination)
   }
-  // Browsers start the context suspended until a user gesture (our click).
   if (ctx.state === 'suspended') ctx.resume()
   return ctx
 }
 
-// Fetch + decode the applause sample once, cached for replays.
-function loadApplause(audio) {
-  if (applauseBuffer || applauseLoad) return applauseLoad
-  applauseLoad = fetch(APPLAUSE_URL)
+// Fetch + decode a sample once, cached for replays.
+function loadSample(audio, name) {
+  if (buffers[name]) return Promise.resolve(buffers[name])
+  if (loads[name]) return loads[name]
+  loads[name] = fetch(URLS[name])
     .then((r) => r.arrayBuffer())
-    .then((data) => audio.decodeAudioData(data))
-    .then((buf) => {
-      applauseBuffer = buf
-      return buf
+    .then((d) => audio.decodeAudioData(d))
+    .then((b) => {
+      buffers[name] = b
+      return b
     })
-    .catch(() => null) // decode unsupported → fall back to synth applause
-  return applauseLoad
+    .catch(() => null)
+  return loads[name]
 }
 
-// Warm the sample as soon as possible so it's ready on the first reveal.
+// Decode all samples up front so the first reveal already has them.
 export function preloadSounds() {
   const audio = getCtx()
-  if (audio) loadApplause(audio)
+  if (!audio) return
+  Object.keys(URLS).forEach((n) => loadSample(audio, n))
 }
 
+// Generic one-shot sample player with fade in/out.
+function playBuffer(audio, buf, when, { gain = 0.85, offset = 0, dur, fadeIn = 0.04, fadeOut = 0.5 } = {}) {
+  const src = audio.createBufferSource()
+  src.buffer = buf
+  const g = audio.createGain()
+  const length = dur != null ? dur : Math.max(0.1, buf.duration - offset)
+  g.gain.setValueAtTime(0.0001, when)
+  g.gain.linearRampToValueAtTime(gain, when + fadeIn)
+  g.gain.setValueAtTime(gain, Math.max(when + fadeIn, when + length - fadeOut))
+  g.gain.exponentialRampToValueAtTime(0.0001, when + length)
+  src.connect(g)
+  g.connect(master)
+  src.start(when, offset)
+  src.stop(when + length + 0.05)
+}
+
+// Real drum-roll: play a steady mid-section of the roll with a crescendo,
+// then duck out as the applause hits.
+function playDrumrollSample(audio, when, dur, buf) {
+  const src = audio.createBufferSource()
+  src.buffer = buf
+  const g = audio.createGain()
+  g.gain.setValueAtTime(0.22, when)
+  g.gain.linearRampToValueAtTime(0.6, when + dur * 0.92) // build tension
+  g.gain.exponentialRampToValueAtTime(0.0001, when + dur + 0.12) // duck under applause
+  src.connect(g)
+  g.connect(master)
+  src.start(when, 1.0) // skip any soft intro — start inside the roll
+  src.stop(when + dur + 0.18)
+}
+
+// ---- Synthesized fallbacks (only if a sample fails to decode) ----
 function noiseBuffer(audio, seconds) {
   const len = Math.max(1, Math.floor(audio.sampleRate * seconds))
   const buf = audio.createBuffer(1, len, audio.sampleRate)
@@ -55,53 +93,35 @@ function noiseBuffer(audio, seconds) {
   for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1
   return buf
 }
-
-// One short, snappy noise transient (a snare tap / a clap).
 function tap(audio, time, { gain = 0.25, freq = 1800, q = 0.7, decay = 0.06 } = {}) {
   const src = audio.createBufferSource()
   src.buffer = noiseBuffer(audio, decay + 0.02)
-
   const bp = audio.createBiquadFilter()
   bp.type = 'bandpass'
   bp.frequency.value = freq
   bp.Q.value = q
-
   const g = audio.createGain()
   g.gain.setValueAtTime(Math.max(0.0001, gain), time)
   g.gain.exponentialRampToValueAtTime(0.0001, time + decay)
-
   src.connect(bp)
   bp.connect(g)
   g.connect(master)
   src.start(time)
   src.stop(time + decay + 0.02)
 }
-
-// Accelerating, crescendoing snare roll over `duration` seconds.
-function drumroll(audio, startAt, duration) {
+function synthDrumroll(audio, startAt, duration) {
   let t = 0
   while (t < duration) {
     const p = t / duration
-    tap(audio, startAt + t, {
-      gain: 0.1 + p * 0.22,
-      freq: 1600 + Math.random() * 600,
-      q: 0.6,
-      decay: 0.05,
-    })
-    // interval tightens from ~70ms to ~26ms as the roll builds
+    tap(audio, startAt + t, { gain: 0.1 + p * 0.22, freq: 1600 + Math.random() * 600, q: 0.6, decay: 0.05 })
     t += 0.07 - p * 0.044
   }
-  // accent hit that punctuates the reveal
   tap(audio, startAt + duration, { gain: 0.5, freq: 1400, q: 0.5, decay: 0.18 })
 }
-
-// Fallback synthesized applause: many randomly-timed claps with a swell envelope.
-// Only used if the recorded sample fails to load/decode.
 function synthApplause(audio, startAt, duration) {
-  const count = 110
-  for (let i = 0; i < count; i++) {
+  for (let i = 0; i < 110; i++) {
     const t = Math.random() * duration
-    const swell = Math.sin(Math.min(t / duration, 1) * Math.PI) // 0 → 1 → 0
+    const swell = Math.sin(Math.min(t / duration, 1) * Math.PI)
     tap(audio, startAt + t, {
       gain: (0.04 + Math.random() * 0.1) * (0.35 + 0.65 * swell),
       freq: 1100 + Math.random() * 1800,
@@ -111,52 +131,42 @@ function synthApplause(audio, startAt, duration) {
   }
 }
 
-// Play the recorded applause sample with a short fade-out tail.
-function playApplauseSample(audio, startAt, buffer) {
-  const src = audio.createBufferSource()
-  src.buffer = buffer
-  const g = audio.createGain()
-  const dur = Math.min(buffer.duration, 4.5)
-  g.gain.setValueAtTime(0.0001, startAt)
-  g.gain.linearRampToValueAtTime(0.95, startAt + 0.08) // quick swell in
-  g.gain.setValueAtTime(0.95, startAt + dur - 0.7)
-  g.gain.exponentialRampToValueAtTime(0.0001, startAt + dur) // fade tail
-  src.connect(g)
-  g.connect(master)
-  src.start(startAt)
-  src.stop(startAt + dur)
-}
-
-// Public: drum-roll under the flip, real applause as the card lands.
-// `flipSeconds` should match the moment the card shows its face.
-export function playReveal(flipSeconds = 1.0) {
+// Public: drum-roll under the flip, then applause + cheers as the card lands.
+// `flipSeconds` is when the card shows its face (the drum-roll crests here).
+export function playReveal(flipSeconds = 1.2) {
   const audio = getCtx()
   if (!audio) return
   const now = audio.currentTime + 0.02
-  drumroll(audio, now, flipSeconds)
+  const revealAt = now + flipSeconds
 
-  const applauseAt = now + flipSeconds
-  if (applauseBuffer) {
-    playApplauseSample(audio, applauseAt, applauseBuffer)
+  // Drum-roll during the suspense
+  if (buffers.drumroll) {
+    playDrumrollSample(audio, now, flipSeconds, buffers.drumroll)
   } else {
-    // Try to load; if ready in time use the sample, otherwise synth fallback.
-    loadApplause(audio)
-    let used = false
-    if (applauseLoad) {
-      applauseLoad.then((buf) => {
-        if (buf && !used) {
-          used = true
-          // schedule relative to the live clock (decode may finish late)
-          playApplauseSample(audio, Math.max(audio.currentTime + 0.01, applauseAt), buf)
-        }
-      })
-    }
-    // Safety net: if the sample isn't ready ~by reveal time, play synth.
-    setTimeout(() => {
-      if (!applauseBuffer && !used) {
-        used = true
-        synthApplause(audio, audio.currentTime + 0.01, 1.9)
-      }
-    }, Math.max(0, flipSeconds * 1000))
+    loadSample(audio, 'drumroll')
+    synthDrumroll(audio, now, flipSeconds)
+  }
+
+  // Applause (clapping) on reveal
+  if (buffers.applause) {
+    playBuffer(audio, buffers.applause, revealAt, {
+      gain: 0.9,
+      dur: Math.min(buffers.applause.duration, 4.5),
+      fadeOut: 0.7,
+    })
+  } else {
+    loadSample(audio, 'applause')
+    synthApplause(audio, revealAt, 1.9)
+  }
+
+  // Cheering / hooting layered on top (no fallback — it's an extra layer)
+  if (buffers.cheer) {
+    playBuffer(audio, buffers.cheer, revealAt + 0.04, {
+      gain: 0.72,
+      dur: Math.min(buffers.cheer.duration, 4.5),
+      fadeOut: 0.8,
+    })
+  } else {
+    loadSample(audio, 'cheer')
   }
 }

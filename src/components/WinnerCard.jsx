@@ -122,13 +122,13 @@ export default function WinnerCard({ card, index, total, onHoverSound, onRevealS
                   ? ['brightness(1)', 'brightness(0.82)', 'brightness(1)']
                   : 'brightness(1)',
               }}
-              transition={{ duration: 0.62, delay: revealed ? 0.55 : 0, times: [0, 0.5, 1], ease: 'easeInOut' }}
+              transition={{ duration: 0.62, delay: revealed ? 0.9 : 0, times: [0, 0.5, 1], ease: 'easeInOut' }}
             >
               {/* BACK — hidden the instant the card is edge-on */}
               <motion.div
                 className="absolute inset-0 overflow-hidden rounded-[22px] shadow-soft ring-1 ring-white/20"
                 animate={{ opacity: revealed ? 0 : 1 }}
-                transition={{ duration: 0.001, delay: revealed ? 0.86 : 0 }}
+                transition={{ duration: 0.001, delay: revealed ? 1.2 : 0 }}
               >
                 <img src={CARD_BACK} alt="" className="h-full w-full object-cover" />
               </motion.div>
@@ -138,7 +138,7 @@ export default function WinnerCard({ card, index, total, onHoverSound, onRevealS
                 className="absolute inset-0 overflow-hidden rounded-[22px] shadow-soft ring-1 ring-white/40"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: revealed ? 1 : 0 }}
-                transition={{ duration: 0.001, delay: revealed ? 0.86 : 0 }}
+                transition={{ duration: 0.001, delay: revealed ? 1.2 : 0 }}
               >
                 <img
                   src={card.img}
@@ -156,7 +156,7 @@ export default function WinnerCard({ card, index, total, onHoverSound, onRevealS
                   }}
                   initial={{ opacity: 0 }}
                   animate={{ opacity: revealed ? 1 : 0 }}
-                  transition={{ duration: 0.6, delay: revealed ? 1.2 : 0 }}
+                  transition={{ duration: 0.6, delay: revealed ? 1.55 : 0 }}
                 />
 
                 {/* Reveal burst fires right as the front lands */}
@@ -165,7 +165,7 @@ export default function WinnerCard({ card, index, total, onHoverSound, onRevealS
                     className="absolute inset-0"
                     initial={{ opacity: 1 }}
                     animate={{ opacity: [1, 1, 0] }}
-                    transition={{ duration: 2.4, delay: 0.9, times: [0, 0.7, 1] }}
+                    transition={{ duration: 2.4, delay: 1.25, times: [0, 0.7, 1] }}
                   >
                     <RevealEffect effect={card.effect} theme={theme} />
                   </motion.div>
